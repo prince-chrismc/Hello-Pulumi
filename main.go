@@ -176,7 +176,7 @@ func main() {
 		}
 		_, err = ecs.NewService(ctx, "app-svc", &ecs.ServiceArgs{
 			Cluster:        cluster.Arn,
-			DesiredCount:   pulumi.Int(5),
+			DesiredCount:   pulumi.Int(2),
 			LaunchType:     pulumi.String("FARGATE"),
 			TaskDefinition: appTask.Arn,
 			NetworkConfiguration: &ecs.ServiceNetworkConfigurationArgs{
