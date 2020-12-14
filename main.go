@@ -112,7 +112,6 @@ func main() {
 		}
 
 		githubActor := pulumi.String(os.Getenv("GITHUB_ACTOR"))
-		fmt.Println("Github Actor: {}", githubActor)
 		githubToken := pulumi.String(os.Getenv("GITHUB_TOKEN"))
 		_, err = docker.NewProvider(ctx, "github-docker", &docker.ProviderArgs{
 			Host: pulumi.String("docker.pkg.github.com"),
@@ -125,7 +124,7 @@ func main() {
 			},
 		})
 
-		name := "docker.pkg.github.com/Hello-Pulumi/hello-pulumi:latest"
+		name := "docker.pkg.github.com/prince-chrismc/hello-pulumi/hello-pulumi:latest"
 		ubuntuRegistryImage, err := docker.LookupRegistryImage(ctx, &docker.LookupRegistryImageArgs{
 			Name: &name,
 		})
