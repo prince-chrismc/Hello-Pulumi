@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/ec2"
 	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/ecs"
@@ -110,7 +111,21 @@ func main() {
 			return err
 		}
 
-		name := "nginx:stable"
+		githubActor := pulumi.String(os.Getenv("GITHUB_ACTOR"))
+		fmt.Println("Github Actor: {}", githubActor)
+		githubToken := pulumi.String(os.Getenv("GITHUB_TOKEN"))
+		_, err = docker.NewProvider(ctx, "github-docker", &docker.ProviderArgs{
+			Host: pulumi.String("docker.pkg.github.com"),
+			RegistryAuth: docker.ProviderRegistryAuthArray{
+				docker.ProviderRegistryAuthArgs{
+					Address:  pulumi.String("docker.pkg.github.com"),
+					Username: &githubActor,
+					Password: &githubToken,
+				},
+			},
+		})
+
+		name := "docker.pkg.github.com/Hello-Pulumi/hello-pulumi:latest"
 		ubuntuRegistryImage, err := docker.LookupRegistryImage(ctx, &docker.LookupRegistryImageArgs{
 			Name: &name,
 		})
@@ -118,7 +133,7 @@ func main() {
 			return err
 		}
 
-		image, err := docker.NewRemoteImage(ctx, "ubuntuRemoteImage", &docker.RemoteImageArgs{
+		image, err := docker.NewRemoteImage(ctx, "remote-image", &docker.RemoteImageArgs{
 			Name: pulumi.String(*ubuntuRegistryImage.Name),
 			PullTriggers: pulumi.StringArray{
 				pulumi.String(ubuntuRegistryImage.Sha256Digest),
