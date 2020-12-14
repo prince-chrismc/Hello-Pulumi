@@ -113,14 +113,17 @@ func main() {
 
 		githubActor := pulumi.String(os.Getenv("GITHUB_ACTOR"))
 		githubToken := pulumi.String(os.Getenv("GITHUB_TOKEN"))
+		imageVersion := pulumi.String(os.Getenv("IMAGE_VERSION"))
 		image, err := docker.NewImage(ctx, "remote-image", &docker.ImageArgs{
-			ImageName: pulumi.String("docker.pkg.github.com/prince-chrismc/hello-pulumi/hello-pulumi:latest"),
+			Build: docker.DockerBuildArgs{
+				Context: pulumi.String("./app"),
+			},
+			ImageName: pulumi.String("docker.pkg.github.com/prince-chrismc/hello-pulumi/hello-pulumi:" + imageVersion),
 			Registry: docker.ImageRegistryArgs{
 				Server:   pulumi.String("docker.pkg.github.com"),
 				Username: githubActor,
 				Password: githubToken,
 			},
-			SkipPush: pulumi.Bool(true),
 		})
 		if err != nil {
 			return err

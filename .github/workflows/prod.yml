@@ -15,10 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PULUMI_STACK_NAME: main
+      IMAGE_VERSION: latest
     steps:
       - uses: actions/checkout@v2
-      - uses: pulumi/action-install-pulumi-cli@v1.0.1
-      - run: pulumi stack select $PULUMI_STACK_NAME
       - uses: pulumi/actions@v1
         with:
           command: up

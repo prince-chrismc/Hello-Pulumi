@@ -18,6 +18,7 @@ jobs:
       IS_PR_WORKFLOW: true
       COMMENT_ON_PR: 1
       PULUMI_STACK_NAME: staging
+      IMAGE_VERSION: staging
     steps:
       - uses: actions/checkout@v2
       - name: Log into registry
