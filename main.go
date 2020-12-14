@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/ec2"
 	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/ecs"
@@ -110,38 +111,22 @@ func main() {
 			return err
 		}
 
-		// githubActor := pulumi.String(os.Getenv("GITHUB_ACTOR"))
-		// githubToken := pulumi.String(os.Getenv("GITHUB_TOKEN"))
-		_, err = docker.NewProvider(ctx, "github-docker", &docker.ProviderArgs{
-			Host: pulumi.String("docker.pkg.github.com"),
-			// RegistryAuth: docker.ProviderRegistryAuthArray{
-			// 	docker.ProviderRegistryAuthArgs{
-			// 		Address:  pulumi.String("docker.pkg.github.com"),
-			// 		Username: &githubActor,
-			// 		Password: &githubToken,
-			// 	},
-			// },
-		})
-
-		name := "docker.pkg.github.com/prince-chrismc/hello-pulumi/hello-pulumi:latest"
-		ubuntuRegistryImage, err := docker.LookupRegistryImage(ctx, &docker.LookupRegistryImageArgs{
-			Name: &name,
-		})
-		if err != nil {
-			return err
-		}
-
-		image, err := docker.NewRemoteImage(ctx, "remote-image", &docker.RemoteImageArgs{
-			Name: pulumi.String(*ubuntuRegistryImage.Name),
-			PullTriggers: pulumi.StringArray{
-				pulumi.String(ubuntuRegistryImage.Sha256Digest),
+		githubActor := pulumi.String(os.Getenv("GITHUB_ACTOR"))
+		githubToken := pulumi.String(os.Getenv("GITHUB_TOKEN"))
+		image, err := docker.NewImage(ctx, "remote-image", &docker.ImageArgs{
+			ImageName: pulumi.String("docker.pkg.github.com/prince-chrismc/hello-pulumi/hello-pulumi:latest"),
+			Registry: docker.ImageRegistryArgs{
+				Server:   pulumi.String("docker.pkg.github.com"),
+				Username: githubActor,
+				Password: githubToken,
 			},
+			SkipPush: pulumi.Bool(true),
 		})
 		if err != nil {
 			return err
 		}
 
-		containerDef := image.Name.ApplyString(func(name string) (string, error) {
+		containerDef := image.ImageName.ApplyString(func(name string) (string, error) {
 			fmtstr := `[{
 				"name": "my-app",
 				"image": %q,
