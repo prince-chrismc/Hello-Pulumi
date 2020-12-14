@@ -21,8 +21,6 @@ jobs:
       PULUMI_STACK_NAME: staging
     steps:
       - uses: actions/checkout@v2
-      - uses: pulumi/action-install-pulumi-cli@v1.0.1
-      - run: pulumi stack select $PULUMI_STACK_NAME || pulumi stack init $PULUMI_STACK_NAME --copy-config-from dev
       - uses: pulumi/actions@v1
         with:
           command: preview
