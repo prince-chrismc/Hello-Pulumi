@@ -1,12 +1,9 @@
 package main
 
 import (
-	"encoding/base64"
 	"fmt"
-	"strings"
 
 	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/ec2"
-	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/ecr"
 	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/ecs"
 	elb "github.com/pulumi/pulumi-aws/sdk/v3/go/aws/elasticloadbalancingv2"
 	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/iam"
@@ -113,42 +110,25 @@ func main() {
 			return err
 		}
 
-		repo, err := ecr.NewRepository(ctx, "foo", &ecr.RepositoryArgs{})
+		name := "nginx:stable"
+		ubuntuRegistryImage, err := docker.LookupRegistryImage(ctx, &docker.LookupRegistryImageArgs{
+			Name: &name,
+		})
 		if err != nil {
 			return err
 		}
 
-		repoCreds := repo.RegistryId.ApplyStringArray(func(rid string) ([]string, error) {
-			creds, err := ecr.GetCredentials(ctx, &ecr.GetCredentialsArgs{
-				RegistryId: rid,
-			})
-			if err != nil {
-				return nil, err
-			}
-			data, err := base64.StdEncoding.DecodeString(creds.AuthorizationToken)
-			if err != nil {
-				fmt.Println("error:", err)
-				return nil, err
-			}
-
-			return strings.Split(string(data), ":"), nil
-		})
-		repoUser := repoCreds.Index(pulumi.Int(0))
-		repoPass := repoCreds.Index(pulumi.Int(1))
-
-		image, err := docker.NewImage(ctx, "my-image", &docker.ImageArgs{
-			Build: docker.DockerBuildArgs{
-				Context: pulumi.String("./app"),
-			},
-			ImageName: repo.RepositoryUrl,
-			Registry: docker.ImageRegistryArgs{
-				Server:   repo.RepositoryUrl,
-				Username: repoUser,
-				Password: repoPass,
+		image, err := docker.NewRemoteImage(ctx, "ubuntuRemoteImage", &docker.RemoteImageArgs{
+			Name: pulumi.String(*ubuntuRegistryImage.Name),
+			PullTriggers: pulumi.StringArray{
+				pulumi.String(ubuntuRegistryImage.Sha256Digest),
 			},
 		})
+		if err != nil {
+			return err
+		}
 
-		containerDef := image.ImageName.ApplyString(func(name string) (string, error) {
+		containerDef := image.Name.ApplyString(func(name string) (string, error) {
 			fmtstr := `[{
 				"name": "my-app",
 				"image": %q,
