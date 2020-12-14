@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/ec2"
 	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/ecs"
@@ -111,17 +110,17 @@ func main() {
 			return err
 		}
 
-		githubActor := pulumi.String(os.Getenv("GITHUB_ACTOR"))
-		githubToken := pulumi.String(os.Getenv("GITHUB_TOKEN"))
+		// githubActor := pulumi.String(os.Getenv("GITHUB_ACTOR"))
+		// githubToken := pulumi.String(os.Getenv("GITHUB_TOKEN"))
 		_, err = docker.NewProvider(ctx, "github-docker", &docker.ProviderArgs{
 			Host: pulumi.String("docker.pkg.github.com"),
-			RegistryAuth: docker.ProviderRegistryAuthArray{
-				docker.ProviderRegistryAuthArgs{
-					Address:  pulumi.String("docker.pkg.github.com"),
-					Username: &githubActor,
-					Password: &githubToken,
-				},
-			},
+			// RegistryAuth: docker.ProviderRegistryAuthArray{
+			// 	docker.ProviderRegistryAuthArgs{
+			// 		Address:  pulumi.String("docker.pkg.github.com"),
+			// 		Username: &githubActor,
+			// 		Password: &githubToken,
+			// 	},
+			// },
 		})
 
 		name := "docker.pkg.github.com/prince-chrismc/hello-pulumi/hello-pulumi:latest"
