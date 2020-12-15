@@ -118,12 +118,13 @@ func main() {
 			Build: docker.DockerBuildArgs{
 				Context: pulumi.String("./app"),
 			},
-			ImageName: pulumi.String("docker.pkg.github.com/prince-chrismc/hello-pulumi/hello-pulumi:" + imageVersion),
+			ImageName: pulumi.String("princechrismc.jfrog.io/user-management-docker/user-management:1.0.0-commit.35"),
 			Registry: docker.ImageRegistryArgs{
 				Server:   pulumi.String("docker.pkg.github.com"),
 				Username: githubActor,
 				Password: githubToken,
 			},
+			SkipPush: pulumi.Bool(true)
 		})
 		if err != nil {
 			return err
