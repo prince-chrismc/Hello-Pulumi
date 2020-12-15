@@ -1,14 +1,12 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
+	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/acm"
 	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/ec2"
 	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/ecs"
 	elb "github.com/pulumi/pulumi-aws/sdk/v3/go/aws/elasticloadbalancingv2"
 	"github.com/pulumi/pulumi-aws/sdk/v3/go/aws/iam"
-	"github.com/pulumi/pulumi-docker/sdk/v2/go/docker"
+	"github.com/pulumi/pulumi-tls/sdk/v2/go/tls"
 	"github.com/pulumi/pulumi/sdk/v2/go/pulumi"
 )
 
@@ -25,7 +23,7 @@ func main() {
 			return err
 		}
 
-		// Create a SecurityGroup that permits HTTP ingress and unrestricted egress.
+		// Create a SecurityGroup that permits HTTPS ingress and unrestricted egress.
 		webSg, err := ec2.NewSecurityGroup(ctx, "web-sg", &ec2.SecurityGroupArgs{
 			VpcId: pulumi.String(vpc.Id),
 			Egress: ec2.SecurityGroupEgressArray{
@@ -39,8 +37,8 @@ func main() {
 			Ingress: ec2.SecurityGroupIngressArray{
 				ec2.SecurityGroupIngressArgs{
 					Protocol:   pulumi.String("tcp"),
-					FromPort:   pulumi.Int(80),
-					ToPort:     pulumi.Int(80),
+					FromPort:   pulumi.Int(443),
+					ToPort:     pulumi.Int(443),
 					CidrBlocks: pulumi.StringArray{pulumi.String("0.0.0.0/0")},
 				},
 			},
@@ -80,7 +78,40 @@ func main() {
 			return err
 		}
 
-		// Create a load balancer to listen for HTTP traffic on port 80.
+		examplePrivateKey, err := tls.NewPrivateKey(ctx, "examplePrivateKey", &tls.PrivateKeyArgs{
+			Algorithm: pulumi.String("RSA"),
+		})
+		if err != nil {
+			return err
+		}
+		exampleSelfSignedCert, err := tls.NewSelfSignedCert(ctx, "exampleSelfSignedCert", &tls.SelfSignedCertArgs{
+			KeyAlgorithm:  pulumi.String("RSA"),
+			PrivateKeyPem: examplePrivateKey.PrivateKeyPem,
+			Subjects: tls.SelfSignedCertSubjectArray{
+				&tls.SelfSignedCertSubjectArgs{
+					CommonName:   pulumi.String("example.com"),
+					Organization: pulumi.String("ACME Examples, Inc"),
+				},
+			},
+			ValidityPeriodHours: pulumi.Int(12),
+			AllowedUses: pulumi.StringArray{
+				pulumi.String("key_encipherment"),
+				pulumi.String("digital_signature"),
+				pulumi.String("server_auth"),
+			},
+		})
+		if err != nil {
+			return err
+		}
+		certificate, err := acm.NewCertificate(ctx, "cert", &acm.CertificateArgs{
+			PrivateKey:      examplePrivateKey.PrivateKeyPem,
+			CertificateBody: exampleSelfSignedCert.CertPem,
+		})
+		if err != nil {
+			return err
+		}
+
+		// Create a load balancer to listen for HTTP traffic on port 443.
 		webLb, err := elb.NewLoadBalancer(ctx, "web-lb", &elb.LoadBalancerArgs{
 			Subnets:        toPulumiStringArray(subnet.Ids),
 			SecurityGroups: pulumi.StringArray{webSg.ID().ToStringOutput()},
@@ -89,8 +120,8 @@ func main() {
 			return err
 		}
 		webTg, err := elb.NewTargetGroup(ctx, "web-tg", &elb.TargetGroupArgs{
-			Port:       pulumi.Int(80),
-			Protocol:   pulumi.String("HTTP"),
+			Port:       pulumi.Int(433),
+			Protocol:   pulumi.String("HTTPS"),
 			TargetType: pulumi.String("ip"),
 			VpcId:      pulumi.String(vpc.Id),
 		})
@@ -99,7 +130,9 @@ func main() {
 		}
 		webListener, err := elb.NewListener(ctx, "web-listener", &elb.ListenerArgs{
 			LoadBalancerArn: webLb.Arn,
-			Port:            pulumi.Int(80),
+			Port:            pulumi.Int(443),
+			Protocol:        pulumi.String("HTTPS"),
+			CertificateArn:  certificate.Arn,
 			DefaultActions: elb.ListenerDefaultActionArray{
 				elb.ListenerDefaultActionArgs{
 					Type:           pulumi.String("forward"),
@@ -111,37 +144,15 @@ func main() {
 			return err
 		}
 
-		githubActor := pulumi.String(os.Getenv("GITHUB_ACTOR"))
-		githubToken := pulumi.String(os.Getenv("GITHUB_TOKEN"))
-		imageVersion := pulumi.String(os.Getenv("IMAGE_VERSION"))
-		image, err := docker.NewImage(ctx, "remote-image", &docker.ImageArgs{
-			Build: docker.DockerBuildArgs{
-				Context: pulumi.String("./app"),
-			},
-			ImageName: pulumi.String("princechrismc.jfrog.io/user-management-docker/user-management:1.0.0-commit.35"),
-			Registry: docker.ImageRegistryArgs{
-				Server:   pulumi.String("docker.pkg.github.com"),
-				Username: githubActor,
-				Password: githubToken,
-			},
-			SkipPush: pulumi.Bool(true)
-		})
-		if err != nil {
-			return err
-		}
-
-		containerDef := image.ImageName.ApplyString(func(name string) (string, error) {
-			fmtstr := `[{
+		containerDef := pulumi.String(`[{
 				"name": "my-app",
-				"image": %q,
+				"image": "princechrismc.jfrog.io/user-management-docker/user-management:1.0.0-commit.35",
 				"portMappings": [{
-					"containerPort": 80,
-					"hostPort": 80,
+					"containerPort": 443,
+					"hostPort": 443,
 					"protocol": "tcp"
 				}]
-			}]`
-			return fmt.Sprintf(fmtstr, name), nil
-		})
+			}]`)
 
 		// Spin up a load balanced service running NGINX.
 		appTask, err := ecs.NewTaskDefinition(ctx, "app-task", &ecs.TaskDefinitionArgs{
@@ -170,7 +181,7 @@ func main() {
 				ecs.ServiceLoadBalancerArgs{
 					TargetGroupArn: webTg.Arn,
 					ContainerName:  pulumi.String("my-app"),
-					ContainerPort:  pulumi.Int(80),
+					ContainerPort:  pulumi.Int(443),
 				},
 			},
 		}, pulumi.DependsOn([]pulumi.Resource{webListener}))
